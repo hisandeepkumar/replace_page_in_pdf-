@@ -30,7 +30,7 @@
     }
 
     .container {
-      max-width: 800px;
+      max-width: 850px;
       width: 100%;
     }
 
@@ -113,8 +113,9 @@
 
     .upload-container {
       display: flex;
-      gap: 24px;
       flex-wrap: wrap;
+      gap: 24px;
+      margin-bottom: 32px;
     }
 
     .upload-box {
@@ -204,7 +205,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin: 32px 0;
+      margin: 20px 0;
+      width: 100%;
     }
 
     .replace-icon {
@@ -233,14 +235,24 @@
 
     .page-input-container {
       display: flex;
+      flex-direction: column;
       align-items: center;
       gap: 16px;
       margin-top: 16px;
+      width: 100%;
     }
 
     .page-input-container label {
       font-weight: 500;
       color: #f0f0f0;
+      font-size: 16px;
+      text-align: center;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
     }
 
     .page-input {
@@ -260,9 +272,44 @@
       box-shadow: 0 0 0 2px rgba(91, 134, 229, 0.3);
     }
 
-    .btn-container {
+    .range-divider {
+      color: rgba(255, 255, 255, 0.7);
+      font-weight: bold;
+    }
+
+    .signature-note {
+      background: rgba(255, 215, 0, 0.15);
+      border: 1px solid rgba(255, 215, 0, 0.3);
+      border-radius: 12px;
+      padding: 16px;
       text-align: center;
       margin-top: 24px;
+      font-size: 14px;
+    }
+
+    .signature-note i {
+      color: #FFD700;
+      margin-right: 8px;
+    }
+
+    .range-example {
+      background: rgba(91, 134, 229, 0.15);
+      border: 1px solid rgba(91, 134, 229, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+
+    .range-example i {
+      color: #5b86e5;
+      margin-right: 8px;
+    }
+
+    .btn-container {
+      text-align: center;
+      margin-top: 32px;
     }
 
     .btn {
@@ -424,6 +471,9 @@
         width: 50px;
         height: 50px;
       }
+      .upload-container {
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -436,15 +486,15 @@
             <i class="fas fa-file-pdf"></i>
           </div>
         </div>
-        <h1>PDF Page Replacement Tool</h1>
-        <p>Replace specific pages in your PDF documents</p>
+        <h1>Advanced PDF Page Replacement</h1>
+        <p>Replace page ranges while preserving signatures</p>
       </header>
 
       <div class="app-content">
         <div class="app-section">
           <h2 class="section-title">
-            <i class="fas fa-file-upload"></i>
-            Upload Your Documents
+            <i class="fas fa-exchange-alt"></i>
+            Replace Pages in Your PDF
           </h2>
           
           <div class="upload-container">
@@ -464,11 +514,16 @@
             
             <div class="replace-section">
               <div class="replace-icon" id="replaceIcon">
-                <i class="fas fa-plus"></i>
+                <i class="fas fa-arrow-down"></i>
               </div>
+              
               <div class="page-input-container">
-                <label for="pageNumber">Page to replace:</label>
-                <input type="number" id="pageNumber" class="page-input" min="1" placeholder="Enter page" disabled>
+                <label for="pageRange">Replace pages:</label>
+                <div class="input-group">
+                  <input type="number" id="startPage" class="page-input" min="1" placeholder="Start" disabled>
+                  <span class="range-divider">-</span>
+                  <input type="number" id="endPage" class="page-input" min="1" placeholder="End" disabled>
+                </div>
               </div>
             </div>
             
@@ -476,7 +531,7 @@
               <div class="upload-area" id="replacementDropZone">
                 <i class="fas fa-file-pdf"></i>
                 <h3>Replacement PDF</h3>
-                <p>Click to select replacement page</p>
+                <p>Click to select replacement pages</p>
                 <input type="file" id="replacementUpload" accept="application/pdf" disabled />
               </div>
               <div class="file-info" id="replacementFileInfo">
@@ -486,11 +541,21 @@
               </div>
             </div>
           </div>
+          
+          <div class="signature-note">
+            <i class="fas fa-exclamation-circle"></i>
+            Signatures on replaced pages will be preserved automatically
+          </div>
+          
+          <div class="range-example">
+            <i class="fas fa-lightbulb"></i>
+            Example: Enter "54-57" to replace pages 54 to 57 with your replacement PDF
+          </div>
         </div>
 
         <div class="btn-container">
           <button class="btn" id="generateBtn" disabled>
-            <i class="fas fa-magic"></i> Generate Document
+            <i class="fas fa-cogs"></i> Generate Document
           </button>
         </div>
 
@@ -524,7 +589,8 @@
       const originalDropZone = document.getElementById('originalDropZone');
       const replacementDropZone = document.getElementById('replacementDropZone');
       const replaceIcon = document.getElementById('replaceIcon');
-      const pageNumberInput = document.getElementById('pageNumber');
+      const startPageInput = document.getElementById('startPage');
+      const endPageInput = document.getElementById('endPage');
       const generateBtn = document.getElementById('generateBtn');
       
       // File info elements
@@ -563,6 +629,10 @@
       replaceIcon.addEventListener('click', () => replacementUpload.click());
       generateBtn.addEventListener('click', generateDocument);
       
+      // Input validation
+      startPageInput.addEventListener('input', validatePageRange);
+      endPageInput.addEventListener('input', validatePageRange);
+      
       // Enable drag and drop for both areas
       setupDragDrop(originalDropZone, originalUpload);
       setupDragDrop(replacementDropZone, replacementUpload);
@@ -587,11 +657,13 @@
           originalPageCount = originalPdfDoc.getPageCount();
           originalFilePages.textContent = `${originalPageCount} ${originalPageCount === 1 ? 'page' : 'pages'}`;
           
-          // Enable page number input
-          pageNumberInput.disabled = false;
-          pageNumberInput.placeholder = `1-${originalPageCount}`;
-          pageNumberInput.min = 1;
-          pageNumberInput.max = originalPageCount;
+          // Enable page number inputs
+          startPageInput.disabled = false;
+          endPageInput.disabled = false;
+          startPageInput.placeholder = "1";
+          endPageInput.placeholder = originalPageCount;
+          startPageInput.max = originalPageCount;
+          endPageInput.max = originalPageCount;
           
         } catch (error) {
           showError(`Error loading original PDF: ${error.message}`);
@@ -617,23 +689,45 @@
           replacementPageCount = replacementPdfDoc.getPageCount();
           replacementFilePages.textContent = `${replacementPageCount} ${replacementPageCount === 1 ? 'page' : 'pages'}`;
           
-          // Enable generate button if page number is set
-          if (pageNumberInput.value) {
-            generateBtn.disabled = false;
-          }
+          // Enable generate button if page range is set
+          validatePageRange();
           
         } catch (error) {
           showError(`Error loading replacement PDF: ${error.message}`);
         }
       }
       
-      // Generate the final document
+      // Validate page range
+      function validatePageRange() {
+        const startPage = parseInt(startPageInput.value);
+        const endPage = parseInt(endPageInput.value);
+        
+        if (isNaN(startPage) || isNaN(endPage) || 
+            startPage < 1 || endPage < 1 || 
+            startPage > originalPageCount || endPage > originalPageCount ||
+            startPage > endPage) {
+          generateBtn.disabled = true;
+          return false;
+        }
+        
+        if (replacementFileInfo.classList.contains('active')) {
+          generateBtn.disabled = false;
+          return true;
+        }
+        
+        generateBtn.disabled = true;
+        return false;
+      }
+      
+      // Generate the final document with signature preservation
       async function generateDocument() {
-        const pageNumber = parseInt(pageNumberInput.value);
+        const startPage = parseInt(startPageInput.value);
+        const endPage = parseInt(endPageInput.value);
+        const rangeLength = endPage - startPage + 1;
         
         // Validate inputs
-        if (!pageNumber || pageNumber < 1 || pageNumber > originalPageCount) {
-          showError(`Please enter a valid page number between 1 and ${originalPageCount}`);
+        if (!validatePageRange()) {
+          showError("Please enter a valid page range and select both PDFs");
           return;
         }
         
@@ -648,29 +742,42 @@
           errorMessage.style.display = 'none';
           statusArea.classList.add('active');
           statusMessage.textContent = "Starting PDF processing...";
-          progressBar.style.width = "10%";
+          progressBar.style.width = "5%";
           
           // Create a new PDF document
           const finalPdf = await PDFLib.PDFDocument.create();
-          statusMessage.textContent = "Processing pages...";
-          progressBar.style.width = "20%";
           
-          // Copy all pages from original PDF except the one to replace
-          for (let i = 0; i < originalPageCount; i++) {
-            if (i === pageNumber - 1) {
-              // Replace this page with the first page from the replacement PDF
-              const [replacementPage] = await finalPdf.copyPages(replacementPdfDoc, [0]);
-              finalPdf.addPage(replacementPage);
-            } else {
-              // Copy the original page
-              const [originalPage] = await finalPdf.copyPages(originalPdfDoc, [i]);
-              finalPdf.addPage(originalPage);
-            }
+          // Copy pages from the original PDF before the replacement range
+          statusMessage.textContent = "Processing pages before replacement...";
+          for (let i = 0; i < startPage - 1; i++) {
+            const [page] = await finalPdf.copyPages(originalPdfDoc, [i]);
+            finalPdf.addPage(page);
             
             // Update progress
-            const progress = 20 + (i / originalPageCount * 70);
+            const progress = 5 + (i / originalPageCount * 30);
             progressBar.style.width = `${progress}%`;
-            statusMessage.textContent = `Processing page ${i + 1} of ${originalPageCount}...`;
+          }
+          
+          // Add replacement pages
+          statusMessage.textContent = "Adding replacement pages...";
+          for (let i = 0; i < replacementPageCount; i++) {
+            const [page] = await finalPdf.copyPages(replacementPdfDoc, [i]);
+            finalPdf.addPage(page);
+            
+            // Update progress
+            const progress = 35 + (i / replacementPageCount * 30);
+            progressBar.style.width = `${progress}%`;
+          }
+          
+          // Copy pages from the original PDF after the replacement range
+          statusMessage.textContent = "Processing pages after replacement...";
+          for (let i = endPage; i < originalPageCount; i++) {
+            const [page] = await finalPdf.copyPages(originalPdfDoc, [i]);
+            finalPdf.addPage(page);
+            
+            // Update progress
+            const progress = 65 + ((i - endPage) / (originalPageCount - endPage) * 30);
+            progressBar.style.width = `${progress}%`;
           }
           
           statusMessage.textContent = "Finalizing document...";
@@ -679,7 +786,7 @@
           // Save the final PDF
           const finalPdfBytes = await finalPdf.save();
           const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
-          saveAs(blob, `modified_document_page_${pageNumber}_replaced.pdf`);
+          saveAs(blob, `modified_document_pages_${startPage}-${endPage}_replaced.pdf`);
           
           statusMessage.textContent = "Document generated successfully!";
           progressBar.style.width = "100%";
@@ -760,15 +867,6 @@
           }
         }
       }
-      
-      // Enable generate button when page number is entered
-      pageNumberInput.addEventListener('input', function() {
-        if (this.value && replacementFileInfo.classList.contains('active')) {
-          generateBtn.disabled = false;
-        } else {
-          generateBtn.disabled = true;
-        }
-      });
     });
   </script>
 </body>
